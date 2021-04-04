@@ -6,7 +6,9 @@
   "mixins": [
   ],
   "client": [
-    "CommandMixin"
+    "CommandMixin",
+		"CameraMixin",
+		"EntityMixin"
   ],
   "injectors": {
     "defaultRequire": 1

@@ -3,11 +3,13 @@ package com.hashicraft.studio.mixin;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.server.command.CommandManager;
 import net.minecraft.server.command.ServerCommandSource;
+import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Vec3d;
 
-import java.util.Hashtable;
 import java.util.concurrent.CompletableFuture;
 
+import com.hashicraft.studio.config.Config;
+import com.hashicraft.studio.config.Position;
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
@@ -17,6 +19,8 @@ import static net.minecraft.server.command.CommandManager.argument;
 import static com.mojang.brigadier.arguments.StringArgumentType.string;
 import static com.mojang.brigadier.arguments.StringArgumentType.getString;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
@@ -24,38 +28,16 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
-import it.unimi.dsi.fastutil.Hash;
+import net.minecraft.block.BlockState;
+import net.minecraft.block.entity.BlockEntity;
+import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.options.Perspective;
 
 @Mixin(CommandManager.class)
 public class CommandMixin {
 
-  private class Position {
-    private Vec3d position;
-    private float yaw;
-    private float pitch;
-
-    Position(Vec3d pos, float pitch, float yaw) {
-      this.position = pos;
-      this .pitch = pitch;
-      this .yaw = yaw;
-    }
-
-    Vec3d getPosition() {
-      return this.position;
-    }
-    
-    float getPitch() {
-      return this.pitch;
-    }
-    
-    float getYaw() {
-      return this.yaw;
-    }
-  }
-  
-
-  private Hashtable<String, Position> positions = new Hashtable<String, Position>();
-
+  private static final Logger LOGGER = LogManager.getLogger();
+  private MinecraftClient mc = MinecraftClient.getInstance();
 
   @Shadow
   @Final
@@ -68,36 +50,37 @@ public class CommandMixin {
     this.dispatcher.register(
         literal("studio")
           .then(literal("camera")
-            .then(newArgs())
             .then(setArgs())
+            .then(viewArgs())
+            .then(clearArgs())
           )
       );
   }
 
-  private LiteralArgumentBuilder<ServerCommandSource> newArgs() {
-    return literal("new")
+  private LiteralArgumentBuilder<ServerCommandSource> setArgs() {
+    return literal("set")
       .then(
         argument("name", string())
           .executes(context -> {
             CompletableFuture.runAsync(() -> {
-                System.out.println("camera_set: ");
-                PlayerEntity player;
                 try {
-                  player = context.getSource().getPlayer();
+                  PlayerEntity player = context.getSource().getPlayer();
 
-                  Vec3d position  = player.getPos();
+                  Vec3d cameraPosition  = player.getCameraPosVec(0);
+                  Vec3d playerPosition  = player.getPos();
+
                   float yaw = player.yaw;
                   float pitch = player.pitch;
 
                   String name = getString(context, "name");
 
-                  System.out.println("name " + name);
-                  System.out.println("pos" + position);
-                  System.out.println("pitch" + pitch);
-                  System.out.println("yaw" + yaw);
+                  LOGGER.info("name {}", name);
+                  LOGGER.info("pos {}", cameraPosition);
+                  LOGGER.info("pitch {}", pitch);
+                  LOGGER.info("yaw {}", yaw);
 
-                  // add the position to the collection
-                  this.positions.put(name, new Position(position,pitch,yaw));
+                  Config.setPosition(name, new Position(cameraPosition,playerPosition, pitch,yaw));
+
                 } catch (CommandSyntaxException e) {
                   e.printStackTrace();
                 }
@@ -110,38 +93,59 @@ public class CommandMixin {
       );
   }
   
-  private LiteralArgumentBuilder<ServerCommandSource> setArgs() {
-    return literal("set")
+  private LiteralArgumentBuilder<ServerCommandSource> viewArgs() {
+    return literal("view")
       .then(
         argument("name", string())
           .executes(context -> {
             CompletableFuture.runAsync(() -> {
-                System.out.println("camera_set: ");
-                PlayerEntity player;
+                String name = getString(context, "name");
+
+                // Teleport the player to the camera location
                 try {
-                  String name = getString(context, "name");
-                  player = context.getSource().getPlayer();
-                  Position position = this.positions.get(name);
+                  PlayerEntity player = context.getSource().getPlayer();
+                  Vec3d pos = Config.getPosition(name).getPlayer();
+                  if(pos == null){
+                    return;
+                  }
 
-                  System.out.println("name " + name);
-                  System.out.println("pos" + position.getPosition());
-                  System.out.println("pitch" + position.getPitch());
-                  System.out.println("yaw" + position.getYaw());
+                  player.teleport(pos.x, pos.y, pos.z);
 
-                  player.yaw  = position.getYaw();
-                  player.pitch = position.getPitch();
-
-                  player.teleport(position.getPosition().x,position.getPosition().y, position.getPosition().z);
-
+                  mc.options.bobView = false; 
+                  mc.options.hudHidden = true;
+                  mc.options.setPerspective(Perspective.THIRD_PERSON_BACK);
+                  mc.options.fov = 36; // Third person moves the camera behind the player zoom in to compensate
+                
+                  Config.setActive(name);
+                  return;
+                
                 } catch (CommandSyntaxException e) {
                   e.printStackTrace();
                 }
-                return;
             });
 
             return 1;
           }
         )
       );
+  }
+
+  private LiteralArgumentBuilder<ServerCommandSource> clearArgs() {
+    return literal("clear")
+      .executes(context -> {
+        CompletableFuture.runAsync(() -> {
+          Config.setActive("");
+
+          MinecraftClient mc = MinecraftClient.getInstance();
+          mc.options.bobView = true; 
+          mc.options.hudHidden = false;
+          mc.options.setPerspective(Perspective.FIRST_PERSON);
+          mc.options.fov = 70; // reset the fov to normal
+
+          return;
+        });
+
+        return 1;
+      });
   }
 }
