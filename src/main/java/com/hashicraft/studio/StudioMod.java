@@ -1,7 +1,10 @@
 package com.hashicraft.studio;
 
+import java.io.IOException;
 import java.util.function.ToIntFunction;
 
+import com.google.gson.JsonSyntaxException;
+import com.hashicraft.studio.config.Config;
 import com.hashicraft.studio.keybinding.ZoomKeyBinding;
 
 import net.fabricmc.api.ModInitializer;
@@ -40,6 +43,17 @@ public class StudioMod implements ModInitializer {
     Registry.register(Registry.ITEM, new Identifier("studio", "chromablue"), new BlockItem(CHROMABLUE_BLOCK, new FabricItemSettings().group(ItemGroup.MISC)));
 
     KeyBindingHelper.registerKeyBinding(ZOOM);
+
+    // load the config
+    try {
+      Config.load();
+    } catch (JsonSyntaxException e) {
+      // TODO Auto-generated catch block
+      e.printStackTrace();
+    } catch (IOException e) {
+      // TODO Auto-generated catch block
+      e.printStackTrace();
+    }
 	}
 
   private static ToIntFunction<BlockState> getLightValueLit(int lightValue) {

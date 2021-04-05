@@ -6,8 +6,10 @@ import net.minecraft.server.command.ServerCommandSource;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Vec3d;
 
+import java.io.IOException;
 import java.util.concurrent.CompletableFuture;
 
+import com.google.gson.JsonIOException;
 import com.hashicraft.studio.config.Config;
 import com.hashicraft.studio.config.Position;
 import com.mojang.brigadier.CommandDispatcher;
@@ -81,7 +83,10 @@ public class CommandMixin {
 
                   Config.setPosition(name, new Position(cameraPosition,playerPosition, pitch,yaw));
 
-                } catch (CommandSyntaxException e) {
+                  // save the config
+                  Config.save();
+
+                } catch (CommandSyntaxException | JsonIOException | IOException e) {
                   e.printStackTrace();
                 }
                 return;
