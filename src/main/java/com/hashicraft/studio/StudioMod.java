@@ -24,6 +24,10 @@ public class StudioMod implements ModInitializer {
   public static final Block CHROMAGREEN_BLOCK = new Block(
     FabricBlockSettings.of(Material.WOOL).strength(4.0f, 0).luminance(getLightValueLit(15))
   );
+  
+  public static final Block CHROMABLUE_BLOCK = new Block(
+    FabricBlockSettings.of(Material.WOOL).strength(4.0f, 0).luminance(getLightValueLit(15))
+  );
 
 	@Override
 	public void onInitialize() {
@@ -31,6 +35,9 @@ public class StudioMod implements ModInitializer {
 
     Registry.register(Registry.BLOCK, new Identifier("studio", "chromagreen_block"), CHROMAGREEN_BLOCK);
     Registry.register(Registry.ITEM, new Identifier("studio", "chromagreen"), new BlockItem(CHROMAGREEN_BLOCK, new FabricItemSettings().group(ItemGroup.MISC)));
+    
+    Registry.register(Registry.BLOCK, new Identifier("studio", "chromablue_block"), CHROMABLUE_BLOCK);
+    Registry.register(Registry.ITEM, new Identifier("studio", "chromablue"), new BlockItem(CHROMABLUE_BLOCK, new FabricItemSettings().group(ItemGroup.MISC)));
 
     KeyBindingHelper.registerKeyBinding(ZOOM);
 	}
